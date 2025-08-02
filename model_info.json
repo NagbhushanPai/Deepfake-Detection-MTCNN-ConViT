@@ -1,0 +1,10 @@
+{
+  "model_type": "ConViTInspired",
+  "num_classes": 2,
+  "input_size": [
+    224,
+    224
+  ],
+  "device": "cpu",
+  "training_complete": true
+}

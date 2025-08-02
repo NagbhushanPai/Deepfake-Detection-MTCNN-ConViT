@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deepfake Detection System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .upload-area {
+            border: 2px dashed #007bff;
+            border-radius: 10px;
+            padding: 50px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .upload-area:hover {
+            background-color: #f8f9fa;
+            border-color: #0056b3;
+        }
+        .upload-area.dragover {
+            background-color: #e3f2fd;
+            border-color: #1976d2;
+        }
+        .result-card {
+            margin-top: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .confidence-bar {
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .face-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .face-item {
+            text-align: center;
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+        }
+        .face-item img {
+            width: 100%;
+            max-width: 120px;
+            height: auto;
+            border-radius: 5px;
+        }
+        .loading-spinner {
+            display: none;
+        }
+        .analytics-card {
+            margin-bottom: 20px;
+        }
+        .prediction-fake {
+            color: #dc3545;
+        }
+        .prediction-real {
+            color: #28a745;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-video me-2"></i>
+                Deepfake Detection System
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#upload-section">Upload</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#analytics-section">Analytics</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Upload Section -->
+        <section id="upload-section">
+            <div class="row">
+                <div class="col-lg-8 mx-auto">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title mb-0">
+                                <i class="fas fa-upload me-2"></i>
+                                Upload Video for Analysis
+                            </h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="upload-area" id="uploadArea">
+                                <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
+                                <h4>Drag and drop your video here</h4>
+                                <p class="text-muted">or click to select a file</p>
+                                <p class="small text-muted">Supported formats: MP4, AVI, MOV (Max 500MB)</p>
+                                <input type="file" id="videoInput" accept="video/*" style="display: none;">
+                            </div>
+                            
+                            <div class="loading-spinner text-center mt-3" id="loadingSpinner">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Processing...</span>
+                                </div>
+                                <p class="mt-2">Processing video... This may take a few minutes.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section id="results-section" style="display: none;">
+            <div class="row mt-4">
+                <div class="col-lg-8 mx-auto">
+                    <div class="card result-card">
+                        <div class="card-header">
+                            <h3 class="card-title mb-0">
+                                <i class="fas fa-chart-line me-2"></i>
+                                Analysis Results
+                            </h3>
+                        </div>
+                        <div class="card-body">
+                            <div id="resultsContent">
+                                <!-- Results will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Analytics Section -->
+        <section id="analytics-section" class="mt-5">
+            <div class="row">
+                <div class="col-12">
+                    <div class="card analytics-card">
+                        <div class="card-header">
+                            <h3 class="card-title mb-0">
+                                <i class="fas fa-analytics me-2"></i>
+                                System Analytics
+                            </h3>
+                            <button class="btn btn-primary btn-sm float-end" onclick="loadAnalytics()">
+                                <i class="fas fa-refresh me-1"></i>Refresh
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div id="analyticsContent">
+                                <p class="text-muted">Click refresh to load analytics data.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Upload functionality
+        const uploadArea = document.getElementById('uploadArea');
+        const videoInput = document.getElementById('videoInput');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const resultsSection = document.getElementById('results-section');
+
+        uploadArea.addEventListener('click', () => videoInput.click());
+        videoInput.addEventListener('change', handleFileSelect);
+
+        // Drag and drop functionality
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        }
+
+        function handleFile(file) {
+            if (!file.type.startsWith('video/')) {
+                alert('Please select a video file.');
+                return;
+            }
+
+            if (file.size > 500 * 1024 * 1024) {
+                alert('File size must be less than 500MB.');
+                return;
+            }
+
+            uploadVideo(file);
+        }
+
+        function uploadVideo(file) {
+            const formData = new FormData();
+            formData.append('video', file);
+
+            loadingSpinner.style.display = 'block';
+            resultsSection.style.display = 'none';
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                loadingSpinner.style.display = 'none';
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    displayResults(data.result);
+                }
+            })
+            .catch(error => {
+                loadingSpinner.style.display = 'none';
+                alert('Error uploading file: ' + error.message);
+            });
+        }
+
+        function displayResults(result) {
+            const resultsContent = document.getElementById('resultsContent');
+            const prediction = result.overall_prediction;
+            const predictionClass = prediction === 'Fake' ? 'prediction-fake' : 'prediction-real';
+            const predictionIcon = prediction === 'Fake' ? 'fas fa-exclamation-triangle' : 'fas fa-check-circle';
+
+            let html = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card border-${prediction === 'Fake' ? 'danger' : 'success'}">
+                            <div class="card-body text-center">
+                                <i class="${predictionIcon} fa-3x ${predictionClass} mb-3"></i>
+                                <h2 class="${predictionClass}">${prediction}</h2>
+                                <p class="lead">Confidence: ${result.confidence}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Analysis Summary</h5>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Frames Analyzed:</strong> ${result.summary.total_frames_analyzed}</p>
+                                <p><strong>Fake Detections:</strong> ${result.summary.fake_count}</p>
+                                <p><strong>Real Detections:</strong> ${result.summary.real_count}</p>
+                                <p><strong>Average Confidence:</strong> ${result.summary.avg_confidence}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            if (result.face_images && result.face_images.length > 0) {
+                html += `
+                    <div class="mt-4">
+                        <h5>Detected Faces</h5>
+                        <div class="face-grid">
+                `;
+                
+                result.face_images.forEach(face => {
+                    const faceClass = face.prediction === 'Fake' ? 'prediction-fake' : 'prediction-real';
+                    html += `
+                        <div class="face-item">
+                            <img src="data:image/png;base64,${face.image}" alt="Detected face">
+                            <p class="mt-2 mb-1"><strong class="${faceClass}">${face.prediction}</strong></p>
+                            <p class="small text-muted">Confidence: ${face.confidence}</p>
+                        </div>
+                    `;
+                });
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (result.frame_predictions && result.frame_predictions.length > 0) {
+                html += `
+                    <div class="mt-4">
+                        <h5>Frame-by-Frame Analysis</h5>
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Frame</th>
+                                        <th>Prediction</th>
+                                        <th>Confidence</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                `;
+                
+                result.frame_predictions.forEach(frame => {
+                    const frameClass = frame.prediction === 'Fake' ? 'prediction-fake' : 'prediction-real';
+                    html += `
+                        <tr>
+                            <td>${frame.frame + 1}</td>
+                            <td class="${frameClass}"><strong>${frame.prediction}</strong></td>
+                            <td>${frame.confidence}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }
+
+            resultsContent.innerHTML = html;
+            resultsSection.style.display = 'block';
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function loadAnalytics() {
+            fetch('/analytics')
+            .then(response => response.json())
+            .then(data => {
+                displayAnalytics(data);
+            })
+            .catch(error => {
+                document.getElementById('analyticsContent').innerHTML = 
+                    '<p class="text-danger">Error loading analytics: ' + error.message + '</p>';
+            });
+        }
+
+        function displayAnalytics(data) {
+            const analyticsContent = document.getElementById('analyticsContent');
+            
+            if (data.total_videos_processed === 0) {
+                analyticsContent.innerHTML = '<p class="text-muted">No videos have been processed yet.</p>';
+                return;
+            }
+
+            let html = `
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <i class="fas fa-video fa-2x text-primary mb-2"></i>
+                                <h3>${data.total_videos_processed}</h3>
+                                <p class="text-muted">Total Videos</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <i class="fas fa-exclamation-triangle fa-2x text-danger mb-2"></i>
+                                <h3>${data.fake_videos_detected}</h3>
+                                <p class="text-muted">Fake Videos</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
+                                <h3>${data.real_videos_detected}</h3>
+                                <p class="text-muted">Real Videos</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <i class="fas fa-percentage fa-2x text-warning mb-2"></i>
+                                <h3>${data.fake_percentage.toFixed(1)}%</h3>
+                                <p class="text-muted">Fake Rate</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            if (data.recent_results && data.recent_results.length > 0) {
+                html += `
+                    <div class="mt-4">
+                        <h5>Recent Analysis Results</h5>
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Filename</th>
+                                        <th>Result</th>
+                                        <th>Confidence</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                `;
+                
+                data.recent_results.forEach(result => {
+                    const prediction = result.result.overall_prediction;
+                    const predictionClass = prediction === 'Fake' ? 'prediction-fake' : 'prediction-real';
+                    const date = new Date(result.timestamp).toLocaleString();
+                    
+                    html += `
+                        <tr>
+                            <td>${result.filename}</td>
+                            <td class="${predictionClass}"><strong>${prediction}</strong></td>
+                            <td>${result.result.confidence}</td>
+                            <td>${date}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }
+
+            analyticsContent.innerHTML = html;
+        }
+
+        // Load analytics on page load
+        document.addEventListener('DOMContentLoaded', loadAnalytics);
+    </script>
+</body>
+</html>
